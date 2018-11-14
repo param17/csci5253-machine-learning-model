@@ -21,3 +21,5 @@ dependencies {
 }
 
 sourceSets.main.java.srcDirs = ['src']
+
+mainClassName = 'edu.bigdata.Main'
