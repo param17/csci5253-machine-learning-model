@@ -1,0 +1,23 @@
+apply plugin:'java'
+apply plugin: "maven"
+apply plugin: 'application'
+
+repositories {
+    mavenCentral()
+    maven {
+        url = "http://packages.confluent.io/maven/"
+    }
+    flatDir {
+        dirs 'lib'
+    }
+}
+
+dependencies {
+    compile name: 'stanford-corenlp-models-current'
+    compile name: 'jawjaw-1.0.2'
+    compile name: 'ws4j-1.0.1'
+
+    compile group: 'edu.stanford.nlp', name: 'stanford-corenlp', version: '3.7.0'
+}
+
+sourceSets.main.java.srcDirs = ['src']
