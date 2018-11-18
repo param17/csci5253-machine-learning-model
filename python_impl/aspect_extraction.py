@@ -57,24 +57,23 @@ def extract_aspects(pos_tag_dict):
 
 def extract_opinions(reviews_dict, aspects):
     output_aspect_opinion_tuples = {}
-    negative_word_set = {"don't", "never", "nothing", "nowhere", "noone", "none", "not",
-                       "hasn't", "hadn't", "can't", "couldn't", "shouldn't", "won't",
-                       "wouldn't", "don't", "doesn't", "didn't", "isn't", "aren't", "ain't"}
+    negative_words = {"don't", "never", "nothing", "nowhere", "noone", "none", "not",
+                      "hasn't", "hadn't", "can't", "couldn't", "shouldn't", "won't",
+                      "wouldn't", "don't", "doesn't", "didn't", "isn't", "aren't", "ain't"}
     for aspect, no in aspects:
         aspect_tokens = word_tokenize(aspect)
-        for key, value in reviews_dict.items():
+        for index, review in reviews_dict.items():
             condition = True
             is_negative_sentiment = False
-            for subWord in aspect_tokens:
-                if subWord in str(value).upper():
+            for aspect_token in aspect_tokens:
+                if aspect_token in str(review).upper():
                     condition = condition and True
                 else:
                     condition = condition and False
+
             if condition:
-                for negWord in negative_word_set:
+                for negWord in negative_words:
                     if not is_negative_sentiment:
-                        if negWord.upper() in str(value).upper():
+                        if negWord.upper() in str(review).upper():
                             is_negative_sentiment = is_negative_sentiment or True
                 output_aspect_opinion_tuples.setdefault(aspect, [0, 0, 0])
-
-    return output_aspect_opinion_tuples
