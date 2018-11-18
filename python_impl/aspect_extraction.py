@@ -1,6 +1,7 @@
 import nltk
 
-from nltk import word_tokenize
+from nltk import word_tokenize, wordnet
+from nltk.corpus import sentiwordnet
 
 
 def remove_stop_words(input_string):
@@ -57,23 +58,58 @@ def extract_aspects(pos_tag_dict):
 
 def extract_opinions(reviews_dict, aspects):
     output_aspect_opinion_tuples = {}
+    positive_words = {}
     negative_words = {"don't", "never", "nothing", "nowhere", "noone", "none", "not",
                       "hasn't", "hadn't", "can't", "couldn't", "shouldn't", "won't",
                       "wouldn't", "don't", "doesn't", "didn't", "isn't", "aren't", "ain't"}
     for aspect, no in aspects:
         aspect_tokens = word_tokenize(aspect)
-        for index, review in reviews_dict.items():
-            condition = True
+        adj_count = 0
+        for key, review in reviews_dict.items():
             is_negative_sentiment = False
-            for aspect_token in aspect_tokens:
-                if aspect_token in str(review).upper():
-                    condition = condition and True
-                else:
-                    condition = condition and False
 
-            if condition:
-                for negWord in negative_words:
-                    if not is_negative_sentiment:
-                        if negWord.upper() in str(review).upper():
-                            is_negative_sentiment = is_negative_sentiment or True
+            if sum([int(aspect_token in str(review).upper()) for aspect_token in aspect_tokens]) == len(aspect_tokens):
+                for negative in negative_words:
+                    is_negative_sentiment = True if not is_negative_sentiment and negative.upper() in str(
+                        review).upper() else is_negative_sentiment
+
                 output_aspect_opinion_tuples.setdefault(aspect, [0, 0, 0])
+
+                for word, tag in review:
+                    if is_adjective_or_adverb(tag):
+                        adj_count += 1
+                        if word not in positive_words:
+                            is_positive_word = is_positive(word)
+                            positive_words[word] = is_positive_word
+                        else:
+                            is_positive_word = positive_words[word]
+                        if is_negative_sentiment and is_positive_word is not None:
+                            is_positive_word = not is_positive_word
+                        add_aspect_sentiment_weights(aspect, is_positive_word, output_aspect_opinion_tuples)
+        if adj_count > 0:
+            output_aspect_opinion_tuples[aspect][0] = ((output_aspect_opinion_tuples[aspect][0] / adj_count) * 100, 2)
+            output_aspect_opinion_tuples[aspect][1] = ((output_aspect_opinion_tuples[aspect][1] / adj_count) * 100, 2)
+            output_aspect_opinion_tuples[aspect][2] = ((output_aspect_opinion_tuples[aspect][2] / adj_count) * 100, 2)
+
+    return output_aspect_opinion_tuples
+
+
+def add_aspect_sentiment_weights(aspect, is_positive_word, output_aspect_opinion_tuples):
+    if is_positive_word:
+        output_aspect_opinion_tuples[aspect][0] += 1
+    elif not is_positive_word:
+        output_aspect_opinion_tuples[aspect][1] += 1
+    elif is_positive_word is None:
+        output_aspect_opinion_tuples[aspect][2] += 1
+
+
+def is_adjective_or_adverb(tag):
+    return tag == 'JJ' or tag == 'JJR' or tag == 'JJS' or tag == 'RB' or tag == 'RBR' or tag == 'RBS'
+
+
+def is_positive(word):
+    wordSynset = wordnet.synsets(word)
+    if len(wordSynset) != 0:
+        word = wordSynset[0].name()
+        orientation = sentiwordnet.senti_synset(word)
+        return orientation.pos_score() > orientation.neg_score()
