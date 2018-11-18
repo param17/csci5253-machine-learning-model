@@ -1,4 +1,5 @@
 import nltk
+import sys
 
 from nltk import word_tokenize, wordnet
 from nltk.corpus import sentiwordnet
@@ -14,7 +15,7 @@ def tokenize_reviews(review):
     tokenizer = nltk.tokenize.punkt.PunktSentenceTokenizer()
     index = 1
     for sentence in tokenizer.tokenize(review):
-        tokens[index] = sentence
+        tokens[index] = remove_stop_words(sentence)
         index += 1
     return tokens
 
@@ -87,11 +88,15 @@ def extract_opinions(reviews_dict, aspects):
                             is_positive_word = not is_positive_word
                         add_aspect_sentiment_weights(aspect, is_positive_word, output_aspect_opinion_tuples)
         if adj_count > 0:
-            output_aspect_opinion_tuples[aspect][0] = ((output_aspect_opinion_tuples[aspect][0] / adj_count) * 100, 2)
-            output_aspect_opinion_tuples[aspect][1] = ((output_aspect_opinion_tuples[aspect][1] / adj_count) * 100, 2)
-            output_aspect_opinion_tuples[aspect][2] = ((output_aspect_opinion_tuples[aspect][2] / adj_count) * 100, 2)
+            normalize_adjective_scores(adj_count, aspect, output_aspect_opinion_tuples)
 
     return output_aspect_opinion_tuples
+
+
+def normalize_adjective_scores(adj_count, aspect, output_aspect_opinion_tuples):
+    output_aspect_opinion_tuples[aspect][0] = ((output_aspect_opinion_tuples[aspect][0] / adj_count) * 100, 2)
+    output_aspect_opinion_tuples[aspect][1] = ((output_aspect_opinion_tuples[aspect][1] / adj_count) * 100, 2)
+    output_aspect_opinion_tuples[aspect][2] = ((output_aspect_opinion_tuples[aspect][2] / adj_count) * 100, 2)
 
 
 def add_aspect_sentiment_weights(aspect, is_positive_word, output_aspect_opinion_tuples):
@@ -108,8 +113,20 @@ def is_adjective_or_adverb(tag):
 
 
 def is_positive(word):
-    wordSynset = wordnet.synsets(word)
-    if len(wordSynset) != 0:
-        word = wordSynset[0].name()
+    word_synset = wordnet.synsets(word)
+    if len(word_synset) != 0:
+        word = word_synset[0].name()
         orientation = sentiwordnet.senti_synset(word)
         return orientation.pos_score() > orientation.neg_score()
+
+
+if __name__ == "__main__":
+
+    reviews_filename = sys.argv[0]
+    raw_reviews = open(reviews_filename, 'r').read()
+    review_tokens = tokenize_reviews(raw_reviews)
+    review_pos_tags = pos_tagging(review_tokens)
+
+    aspects_dict = extract_aspects(review_pos_tags)
+    output_opinions_dict = extract_opinions(review_pos_tags, aspects_dict)
+    print(output_opinions_dict)
