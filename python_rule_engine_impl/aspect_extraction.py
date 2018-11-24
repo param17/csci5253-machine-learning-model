@@ -1,8 +1,16 @@
 import nltk
-import sys
+import os
+import json
 
 from nltk import word_tokenize, wordnet
 from nltk.corpus import sentiwordnet
+
+from pyspark import SparkContext
+from pyspark.streaming import StreamingContext
+from pyspark.streaming.kafka import KafkaUtils
+from kafka import KafkaProducer
+from kafka.errors import KafkaError
+
 
 
 def remove_stop_words(input_string):
@@ -120,13 +128,46 @@ def is_positive(word):
         return orientation.pos_score() > orientation.neg_score()
 
 
-if __name__ == "__main__":
+def send_opinions_to_kafka(opinions):
+    futures = []
 
-    reviews_filename = sys.argv[0]
-    raw_reviews = open(reviews_filename, 'r').read()
-    review_tokens = tokenize_reviews(raw_reviews)
+    sending_topic = 'opinions'
+    opinions_producer = KafkaProducer(bootstrap_servers=os.environ['KAFKA_IP'],
+                                   retries=3)
+
+    for x in list(opinions):
+        future = opinions_producer.send(sending_topic, json.dumps(x).encode('ascii', 'ignore'))
+        futures.append(future)
+
+    for i, future in enumerate(futures):
+        try:
+            _ = future.get(timeout=10)
+        except KafkaError as e:
+            print('Tweet number %i was not sent to Kafka. Reason: %s' % i, str(e))
+            pass
+
+
+def process(rdd):
+    review_tokens = tokenize_reviews(rdd)
     review_pos_tags = pos_tagging(review_tokens)
 
     aspects_dict = extract_aspects(review_pos_tags)
-    output_opinions_dict = extract_opinions(review_pos_tags, aspects_dict)
-    print(output_opinions_dict)
+    opinions = extract_opinions(review_pos_tags, aspects_dict)
+    send_opinions_to_kafka(opinions)
+
+
+
+
+if __name__ == "__main__":
+    spark_context = SparkContext(appName="kafka_spark_integration")
+    spark_context.setLogLevel("WARN")
+
+    spark_streaming_context = StreamingContext(spark_context, 500)
+    receiving_topic = 'tweets'
+    host = os.environ['KAFKA_IP'] + ':' + os.environ['KAFKA_PORT']
+    kafkaStream = KafkaUtils.createStream(spark_streaming_context, host, 'spark-streaming', {receiving_topic: 1})
+
+    kafkaStream.map(process)
+
+
+
